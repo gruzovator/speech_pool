@@ -1,0 +1,4 @@
+aiohttp
+pika
+jsonrpcserver
+jsonrpcclient[requests]
