@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import logging
 import textwrap
-from weakref import WeakValueDictionary
+from weakref import WeakValueDictionary, ref
 
 import aiohttp
 import aiohttp.web
@@ -19,8 +19,6 @@ log.addHandler(logging.NullHandler())
 # jsonrpc client/server logging config (these libs have non=pythonic logging configuration)
 jsonrpcserver.config.log_requests = False
 jsonrpcserver.config.log_responses = False
-logging.getLogger('jsonrpcclient.client.request').setLevel(logging.ERROR)
-logging.getLogger('jsonrpcclient.client.response').setLevel(logging.ERROR)
 
 
 def _hash(text):
@@ -33,7 +31,7 @@ def _shorten(text):
 
 
 async def _send_bus_event(event):
-    """TODO"""
+    """TODO: rabbitmq client"""
     log.info('Rabbitmq message: %s', event)
 
 
@@ -100,7 +98,6 @@ class Api:
         :param int port:
         :param on_completed_event:
         :return: request_id
-        :rtype: int
         """
         log.debug('on start_speek')
         self._requests_counter += 1
@@ -123,12 +120,14 @@ class Api:
         (tts to cache stream will not be canceled)
 
         :param str request_id:
+        :return: True if speech stream was canceled, False if nothing to cancel
         """
         log.debug('on stop_speek')
         fut = self._clients.pop(request_id, None)
         if fut is not None:
             fut.cancel()
-        return
+            return True
+        return False
 
     @staticmethod
     async def jsonrpc_dispatch(request):
@@ -145,5 +144,5 @@ def run(settings):
     methods.add(api.start_speek)
     methods.add(api.stop_speek)
     app = aiohttp.web.Application()
-    app.router.add_post('/api/v1', api.jsonrpc_dispatch)
+    app.router.add_post(settings.api_path, api.jsonrpc_dispatch)
     aiohttp.web.run_app(app, host=settings.host, port=settings.port)
