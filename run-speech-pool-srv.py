@@ -28,7 +28,7 @@ parser.add_argument('-P', '--port', type=int, default=8080, help='service port')
 parser.add_argument('-A', '--api-path', default='/api/v1', help='service API path')
 parser.add_argument('--tts-api-url', required=True, help='text-to-speech service url')
 parser.add_argument('--tts-api-limit', type=int, default=10, help='text-to-speech service connections limit')
-# parser.add_argument('--tts-client-key', required=True, help='text-to-speech service customer key')
+parser.add_argument('--max-cache-items', type=int, default=512, help='max number of cache items')
 parser.add_argument('-v', '--verbose', action='store_true', help='switch on debug logging')
 args = parser.parse_args()
 

@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import logging
 import textwrap
+from lru import LRU
 from weakref import WeakValueDictionary, WeakSet
 
 import aiohttp
@@ -48,7 +49,7 @@ async def run_tts_conversion(tts_api_url, text, streambuf_writer):
         # TODO: open external port, connect to TTS service and request text conversion
         ####
         for ch in text:
-            await asyncio.sleep(0.3) # just for demo
+            await asyncio.sleep(0.3)  # just for demo
             await streambuf_writer.write(ch.upper().encode('utf8'))
             ####
     except:
@@ -87,12 +88,12 @@ async def play(request_id, streambuf_reader, client_address, on_completed_event)
 
 
 class Api:
-    def __init__(self, host, tts_api_url, tts_api_limit):
+    def __init__(self, host, tts_api_url, tts_api_limit, max_cache_items):
         self._service_host = host
         self._tts_api_url = tts_api_url
         self._tts_api_limit = tts_api_limit
         self._requests_counter = 0
-        self._cache = {}  # key: text hash, value: stream buffer
+        self._cache = LRU(max_cache_items)  # key: text hash, value: stream buffer
         self._clients = WeakValueDictionary()  # key: request id, value: future for play
         self._tts_requests = WeakSet()
         self._log = logger.getChild('api')
@@ -162,7 +163,10 @@ class Api:
 
 
 def run(settings):
-    api = Api(settings.host, settings.tts_api_url, settings.tts_api_limit)
+    api = Api(settings.host,
+              settings.tts_api_url,
+              settings.tts_api_limit,
+              settings.max_cache_items)
     methods.add(api.start_speek)
     methods.add(api.stop_speek)
     app = aiohttp.web.Application()

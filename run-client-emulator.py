@@ -3,7 +3,7 @@
 """ speech_pool demo client.
 
     The client opens TCP port, connects to speech_pool service and call commands 'start_speek'
-    and 'stop_speek'. Received data printed to stdout.
+    and 'stop_speek'. Received data are logged with <DATA> prefix.
  """
 import argparse
 import logging
@@ -40,7 +40,8 @@ def main():
         pass
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=HelpFormatter)
-    parser.add_argument('--api-url', required=True, help='speech_pool jsonrpc api url')
+    parser.add_argument('--api-url', default='http://localhost:8080/api/v1',
+                        help='speech_pool jsonrpc api url')
     parser.add_argument('-t', '--text', required=True, help='text to convert to audio')
     parser.add_argument('-d', '--start-stop-delay', default=5, type=int,
                         help='delay between start_play and stop_play commands, seconds')

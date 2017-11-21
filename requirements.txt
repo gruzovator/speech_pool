@@ -3,3 +3,4 @@ pika
 jsonrpcserver
 jsonrpcclient[requests]
 pytest
+lru-dict
