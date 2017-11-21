@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import textwrap
 import logging
 from weakref import WeakValueDictionary
 
@@ -28,18 +29,55 @@ def _hash(text):
     # TODO: we don't use text as text in this app, so json decoder can leave all texts as bytes
     return hashlib.md5(text.encode('utf8')).hexdigest()
 
+def _shorten(text):
+    return textwrap.shorten(text, 32)
 
-def _send_bus_event(event):
+
+async def _send_bus_event(event):
     """TODO"""
     log.info('Rabbitmq message: %s', event)
 
 
-def run_tts_conversion(tts_api_url, text, streambuf_writer):
-    pass
+async def run_tts_conversion(tts_api_url, text, streambuf_writer):
+    """Coroutine to interact with TTS service
+
+        Requests text to speech conversion, receives data, writes data to streambuf.
+    """
+    log.debug('TTS conversion of text "%s". Begin', _shorten(text))
+    try:
+        ####
+        # TODO: open external port, connect to TTS service and request text conversion
+        ####
+        for ch in text:
+            await asyncio.sleep(0.3)
+            await streambuf_writer.write(ch.encode('utf8'))
+        ####
+    except:
+        log.exception('TTS service streaming error')
+        await streambuf_writer.close(inclomplete=True)
+    else:
+        await streambuf_writer.close()
+    log.debug('TTS conversion of text "%s". End', _shorten(text))
 
 
-def play(streambuf_reader, client_address, on_completed_event):
-    pass
+async def play(streambuf_reader, client_address, on_completed_event):
+    """Coroutine to stream data (result of tts converison) from streambuf to client
+    """
+    try:
+        target_reader, target_writer = await asyncio.open_connection(*client_address)
+        try:
+            while True:
+                data_chunk = await streambuf_reader.read()
+                if data_chunk is None:
+                    break
+                target_writer.write(data_chunk)
+        finally:
+            target_writer.close()
+    except Exception as ex:
+        log.exception('tts streambuf play error')
+        await _send_bus_event('event: %s, error: %s' % (on_completed_event, ex))
+    else:
+        await _send_bus_event('event: %s, done' % on_completed_event)
 
 
 class Api:
