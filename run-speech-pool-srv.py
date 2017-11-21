@@ -2,20 +2,14 @@
 # coding: utf8
 """ Speech Pool Application (Service)
 
-    Сервис предоставляет доступ к внешнему провайдеру ф-ции text-to-speech.
-    Ф-ции:
-        - проксирование потока данных от провайдера ф-ции text-to-speech
-        - ограничение кол-ва одновременных подключений к провайдеру ф-ции text-to-speech
-        - кэширование результатов text-to-speech
+Service implements facade to external Text-to-Speech (TTS) service with following features:
+    - caching (caching audio data for given text)
+    - limit for simultaneous connections to TTS service
 
-
-    Упрошения (TODO):
-        - ф-ция text-to-speech эмулируется просто tcp соединением (в реальном сервисе нужен RTP)
-        - предполагается, что сервер запускается в единственном экземпляре. В противном случае надо добавить
-            внешние счётчик и семафор (e.g. на redis)
-        - cache примитивный - в памяти сервиса
-
-    Для отладки можно использовать скрипт run-tts-srv-emulator.py, эмулирующий внешний сервис
+This is a demo application. It has next limitations:
+    - TTS service is emulated by stub that converts input text to upper case text
+    - counters, limiters and cache are implemented inside this application. In real service that features
+    should be implemented externally (e.g. redis)
 """
 
 import argparse
