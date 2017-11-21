@@ -2,12 +2,13 @@ import asyncio
 import hashlib
 import logging
 import textwrap
-from weakref import WeakValueDictionary
+from weakref import WeakValueDictionary, WeakSet
 
 import aiohttp
 import aiohttp.web
 import jsonrpcserver.config
 from jsonrpcserver.aio import methods
+from jsonrpcserver.exceptions import ServerError
 
 from .streambuf import StreamBuffer
 
@@ -47,8 +48,8 @@ async def run_tts_conversion(tts_api_url, text, streambuf_writer):
         # TODO: open external port, connect to TTS service and request text conversion
         ####
         for ch in text:
-            await asyncio.sleep(0.3)
-            await streambuf_writer.write(ch.encode('utf8'))
+            await asyncio.sleep(0.3) # just for demo
+            await streambuf_writer.write(ch.upper().encode('utf8'))
             ####
     except:
         log.exception('streaming error')
@@ -86,12 +87,14 @@ async def play(request_id, streambuf_reader, client_address, on_completed_event)
 
 
 class Api:
-    def __init__(self, host, tts_api_url):
+    def __init__(self, host, tts_api_url, tts_api_limit):
         self._service_host = host
         self._tts_api_url = tts_api_url
+        self._tts_api_limit = tts_api_limit
         self._requests_counter = 0
         self._cache = {}  # key: text hash, value: stream buffer
         self._clients = WeakValueDictionary()  # key: request id, value: future for play
+        self._tts_requests = WeakSet()
         self._log = logger.getChild('api')
 
     async def start_speek(self, text, host, port, on_completed_event):
@@ -119,10 +122,14 @@ class Api:
             buf = None
 
         if not buf:  # text hasn't been translated to speech before
+            if len(self._tts_requests) >= self._tts_api_limit:
+                self._log.error('TTS requests limit')
+                raise ServerError(data='too many requests')
             self._log.debug('request_id:%d new text, requesting TTS service for conversion', request_id)
             buf = StreamBuffer()
             self._cache[text_hash] = buf
-            asyncio.ensure_future(run_tts_conversion(self._tts_api_url, text, buf.make_writer()))
+            fut = asyncio.ensure_future(run_tts_conversion(self._tts_api_url, text, buf.make_writer()))
+            self._tts_requests.add(fut)
         else:
             self._log.debug('request_id:%d playing from cache', request_id)
         self._clients[request_id] = asyncio.ensure_future(
@@ -155,7 +162,7 @@ class Api:
 
 
 def run(settings):
-    api = Api(settings.host, settings.tts_api_url)
+    api = Api(settings.host, settings.tts_api_url, settings.tts_api_limit)
     methods.add(api.start_speek)
     methods.add(api.stop_speek)
     app = aiohttp.web.Application()
