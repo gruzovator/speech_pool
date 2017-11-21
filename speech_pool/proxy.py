@@ -1,6 +1,10 @@
 import asyncio
+import logging
 
 __all__ = ['run_proxy']
+
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
 
 _PIPE_BUFFER_SIZE = 4096
 
@@ -27,9 +31,17 @@ async def run_proxy(proxy_address, target_address):
     """
 
     async def _proxy(reader, writer):
+        # get real port value, cause proxy_address[1] may be None
+        proxy_port = writer.transport.get_extra_info('sockname')[1]
+        proxy_name = 'proxy (%s:%d->%s:%d)' % (proxy_address[0], proxy_port, *target_address)
+        log.debug('%s start', proxy_name)
         target_reader, target_writer = await asyncio.open_connection(*target_address)
         try:
             await asyncio.gather(_pipe(target_reader, writer), _pipe(reader, target_writer))
+        except:
+            log.exception('%s', proxy_name)
+        else:
+            log.debug('%s end', proxy_name)
         finally:
             target_writer.close()
 
