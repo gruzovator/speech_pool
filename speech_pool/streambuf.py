@@ -46,6 +46,10 @@ class _Reader:
 
 
 class StreamBuffer:
+    """Class to store (cache) speech stream in memory
+
+    Buffer reader can read data while writer is still writing.
+    """
     # states
     _ST_START = 0
     _ST_RECEIVING = 1  # write in progress
