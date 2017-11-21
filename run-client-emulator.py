@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s [%(levelname)-5s][%(name)s]: %(message)s',
                     datefmt='%Y-%m-%dT%H:%M:%S')
 logging.getLogger('jsonrpcclient.client.request').setLevel(logging.ERROR)
-# logging.getLogger('jsonrpcclient.client.response').setLevel(logging.ERROR)
+logging.getLogger('jsonrpcclient.client.response').setLevel(logging.ERROR)
 log = logging.getLogger('speech_pool_client')
 log.setLevel(logging.DEBUG)
 
