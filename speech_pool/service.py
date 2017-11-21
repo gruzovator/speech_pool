@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import logging
 import textwrap
-from weakref import WeakValueDictionary, ref
+from weakref import WeakValueDictionary
 
 import aiohttp
 import aiohttp.web
@@ -13,8 +13,8 @@ from .streambuf import StreamBuffer
 
 __all__ = ['run']
 
-log = logging.getLogger(__name__)
-log.addHandler(logging.NullHandler())
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # jsonrpc client/server logging config (these libs have non=pythonic logging configuration)
 jsonrpcserver.config.log_requests = False
@@ -32,7 +32,7 @@ def _shorten(text):
 
 async def _send_bus_event(event):
     """TODO: rabbitmq client"""
-    log.info('Rabbitmq message: %s', event)
+    logger.info('Rabbitmq message: %s', event)
 
 
 async def run_tts_conversion(tts_api_url, text, streambuf_writer):
@@ -40,7 +40,8 @@ async def run_tts_conversion(tts_api_url, text, streambuf_writer):
 
         Requests text to speech conversion, receives data, writes data to streambuf.
     """
-    log.debug('TTS conversion of text "%s". Begin', _shorten(text))
+    log = logger.getChild('TTS')
+    log.debug('converting text "%s"...', _shorten(text))
     try:
         #### TTS Provider Stub
         # TODO: open external port, connect to TTS service and request text conversion
@@ -50,19 +51,22 @@ async def run_tts_conversion(tts_api_url, text, streambuf_writer):
             await streambuf_writer.write(ch.encode('utf8'))
             ####
     except:
-        log.exception('TTS service streaming error')
+        log.exception('streaming error')
         await streambuf_writer.close(inclomplete=True)
     else:
         await streambuf_writer.close()
-    log.debug('TTS conversion of text "%s". End', _shorten(text))
+    log.debug('text "%s" conversion done', _shorten(text))
 
 
-async def play(streambuf_reader, client_address, on_completed_event):
+async def play(request_id, streambuf_reader, client_address, on_completed_event):
     """Coroutine to stream data (result of tts converison) from streambuf to client
     """
+    log = logger.getChild('play:%d' % request_id)
     try:
+        log.debug('connecting...')
         target_reader, target_writer = await asyncio.open_connection(*client_address)
         try:
+            log.debug('playing...')
             while True:
                 data_chunk = await streambuf_reader.read()
                 if data_chunk is None:
@@ -71,11 +75,13 @@ async def play(streambuf_reader, client_address, on_completed_event):
         finally:
             target_writer.close()
     except asyncio.CancelledError:
-        await _send_bus_event('event: %s, canceled' % on_completed_event)
+        log.debug('cancelled')
+        await _send_bus_event('event: %s, cancelled' % on_completed_event)
     except Exception as ex:
         log.exception('tts streambuf play error')
         await _send_bus_event('event: %s, error: %s' % (on_completed_event, ex))
     else:
+        log.debug('done')
         await _send_bus_event('event: %s, done' % on_completed_event)
 
 
@@ -86,6 +92,7 @@ class Api:
         self._requests_counter = 0
         self._cache = {}  # key: text hash, value: stream buffer
         self._clients = WeakValueDictionary()  # key: request id, value: future for play
+        self._log = logger.getChild('api')
 
     async def start_speek(self, text, host, port, on_completed_event):
         """Start streaming text converted to speech to given address.
@@ -93,25 +100,33 @@ class Api:
         Streams are cached by text hash.
         'on_completed_event' is used to notify client about process end
 
-        :param str text:
-        :param str host:
-        :param int port:
+        :param str text: text to convert
+        :param str host: client host
+        :param int port: client port
         :param on_completed_event:
         :return: request_id
         """
-        log.debug('on start_speek')
         self._requests_counter += 1
         request_id = self._requests_counter
+        self._log.debug('request_id:%d <start_speek("%s", "%s", %d, "%s")>',
+                        request_id, _shorten(text), host, port, on_completed_event)
         text_hash = _hash(text)
         buf = self._cache.get(text_hash)
+
+        if buf and buf.corrupted():
+            self._log.warn('corrupted streambuf in cache, removed')
+            del self._cache[text_hash]
+            buf = None
+
         if not buf:  # text hasn't been translated to speech before
-            log.info('tts from serivce')
+            self._log.debug('request_id:%d new text, requesting TTS service for conversion', request_id)
             buf = StreamBuffer()
             self._cache[text_hash] = buf
             asyncio.ensure_future(run_tts_conversion(self._tts_api_url, text, buf.make_writer()))
         else:
-            log.info('tts from cache')
-        self._clients[request_id] = asyncio.ensure_future(play(buf.make_reader(), (host, port), on_completed_event))
+            self._log.debug('request_id:%d playing from cache', request_id)
+        self._clients[request_id] = asyncio.ensure_future(
+            play(request_id, buf.make_reader(), (host, port), on_completed_event))
         return request_id
 
     async def stop_speek(self, request_id):
@@ -122,7 +137,7 @@ class Api:
         :param str request_id:
         :return: True if speech stream was canceled, False if nothing to cancel
         """
-        log.debug('on stop_speek')
+        self._log.debug('request_id:%d, <stop_speek>')
         fut = self._clients.pop(request_id, None)
         if fut is not None:
             fut.cancel()

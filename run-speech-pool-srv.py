@@ -31,6 +31,7 @@ class HelpFormatter(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHelp
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=HelpFormatter)
 parser.add_argument('-H', '--host', default='127.0.0.1', help='service host')
 parser.add_argument('-P', '--port', type=int, default=8080, help='service port')
+parser.add_argument('-A', '--api-path', default='/api/v1', help='service API path')
 parser.add_argument('--tts-api-url', required=True, help='text-to-speech service url')
 parser.add_argument('--tts-limit', type=int, default=10, help='text-to-speech service connections limit')
 # parser.add_argument('--tts-client-key', required=True, help='text-to-speech service customer key')

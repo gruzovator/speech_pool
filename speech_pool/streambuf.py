@@ -69,3 +69,9 @@ class StreamBuffer:
 
     def make_reader(self):
         return _Reader(self)
+
+    def closed(self):
+        return self._state >= self._ST_CLOSED
+
+    def corrupted(self):
+        return self._state == self._ST_CLOSED_INCOMPLETE
