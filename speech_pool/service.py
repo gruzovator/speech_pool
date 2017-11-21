@@ -1,16 +1,14 @@
 import asyncio
 import hashlib
-import textwrap
 import logging
+import textwrap
 from weakref import WeakValueDictionary
 
 import aiohttp
 import aiohttp.web
 import jsonrpcserver.config
-from jsonrpcclient.aiohttp_client import aiohttpClient
 from jsonrpcserver.aio import methods
 
-from .proxy import run_proxy
 from .streambuf import StreamBuffer
 
 __all__ = ['run']
@@ -29,6 +27,7 @@ def _hash(text):
     # TODO: we don't use text as text in this app, so json decoder can leave all texts as bytes
     return hashlib.md5(text.encode('utf8')).hexdigest()
 
+
 def _shorten(text):
     return textwrap.shorten(text, 32)
 
@@ -45,13 +44,13 @@ async def run_tts_conversion(tts_api_url, text, streambuf_writer):
     """
     log.debug('TTS conversion of text "%s". Begin', _shorten(text))
     try:
-        ####
+        #### TTS Provider Stub
         # TODO: open external port, connect to TTS service and request text conversion
         ####
         for ch in text:
             await asyncio.sleep(0.3)
             await streambuf_writer.write(ch.encode('utf8'))
-        ####
+            ####
     except:
         log.exception('TTS service streaming error')
         await streambuf_writer.close(inclomplete=True)
@@ -73,6 +72,8 @@ async def play(streambuf_reader, client_address, on_completed_event):
                 target_writer.write(data_chunk)
         finally:
             target_writer.close()
+    except asyncio.CancelledError:
+        await _send_bus_event('event: %s, canceled' % on_completed_event)
     except Exception as ex:
         log.exception('tts streambuf play error')
         await _send_bus_event('event: %s, error: %s' % (on_completed_event, ex))
@@ -113,9 +114,7 @@ class Api:
             asyncio.ensure_future(run_tts_conversion(self._tts_api_url, text, buf.make_writer()))
         else:
             log.info('tts from cache')
-        fut = play(buf.make_reader(), (host, port), on_completed_event)
-        self._clients[request_id] = fut
-        asyncio.ensure_future(fut)
+        self._clients[request_id] = asyncio.ensure_future(play(buf.make_reader(), (host, port), on_completed_event))
         return request_id
 
     async def stop_speek(self, request_id):
@@ -127,31 +126,9 @@ class Api:
         """
         log.debug('on stop_speek')
         fut = self._clients.pop(request_id, None)
-        if fut:
+        if fut is not None:
             fut.cancel()
         return
-
-    async def _process_request(self, request_id, text, target_address, on_completed_event):
-        log.debug('start processing request %d', request_id)
-        proxy = None
-        try:
-            # run proxy on randomly selected port
-            proxy = await run_proxy((self._service_host, None), target_address)
-
-            # call TTS service play command
-            async with aiohttp.ClientSession() as session:
-                client = aiohttpClient(session, self._tts_api_url)
-                proxy_host = self._service_host
-                proxy_port = proxy.sockets[0].getsockname()[1]
-                await client.request('play', text, proxy_host, proxy_port)
-
-        except Exception:
-            log.error('error processing request %d', request_id)
-        else:
-            log.debug('end proceeing request %d', request_id)
-        finally:
-            if proxy:
-                proxy.close()
 
     @staticmethod
     async def jsonrpc_dispatch(request):

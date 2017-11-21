@@ -64,7 +64,7 @@ def main():
                 data = conn.recv(4096)
                 if not data:
                     break
-                log.info('DATA: %s', data)
+                log.info('<DATA>: %s', data)
         log.info('incoming connection end')
 
 
