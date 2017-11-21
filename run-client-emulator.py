@@ -26,7 +26,11 @@ def call_stop_cmd(delay, api_url, request_id):
     try:
         time.sleep(delay)
         log.info('calling <stop_speek> command')
-        jsonrpcclient.request(api_url, 'stop_speek', request_id)
+        ok = jsonrpcclient.request(api_url, 'stop_speek', request_id)
+        if ok:
+            log.info('data stream was cancelled')
+        else:
+            log.info('nothing to cancel')
     except:
         log.exception('error')
 
