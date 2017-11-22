@@ -1,6 +1,7 @@
 # speech_pool service
 
-Python test project
+Python (>=3.6) test project
+
 
 ## Demo
 
@@ -17,5 +18,5 @@ Python test project
 ```
 
 - you should see incoming data (letters in uppercase).
-- if you run client with the same text again, data are streamed from cache
+- if you run client with the same text again, data will be streamed from cache
 
